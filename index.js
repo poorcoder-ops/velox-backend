@@ -14,13 +14,17 @@ const supabase = createClient(
 );
 
 // PostgreSQL pool
-const pool = new Pool({
-  host: process.env.SUPABASE_HOST,
-  port: process.env.SUPABASE_PORT,
-  database: process.env.SUPABASE_DB,
-  user: process.env.SUPABASE_USER,
-  password: process.env.SUPABASE_PASSWORD,
-});
+const poolConfig = process.env.DATABASE_URL
+  ? { connectionString: process.env.DATABASE_URL }
+  : {
+      host: process.env.SUPABASE_HOST,
+      port: parseInt(process.env.SUPABASE_PORT) || 5432,
+      database: process.env.SUPABASE_DB,
+      user: process.env.SUPABASE_USER,
+      password: process.env.SUPABASE_PASSWORD,
+    };
+
+const pool = new Pool(poolConfig);
 
 // Groq client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
