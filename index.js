@@ -13,9 +13,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// PostgreSQL pool - only create if DATABASE_URL is available
+// PostgreSQL pool - with SSL and connection settings
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  },
+  connectionTimeoutMillis: 10000,
+  host: 'db.uchlzfylwuapeaupwviy.supabase.co',
+  port: 5432,
+  database: 'postgres',
+  user: 'postgres',
+  password: process.env.SUPABASE_PASSWORD || 'PAuHih5wbjHS6Jjw'
 });
 
 // Groq client
