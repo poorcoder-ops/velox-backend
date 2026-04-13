@@ -177,13 +177,17 @@ app.get('/api/waitlist/position/:email', async (req, res) => {
 // Reviews list
 app.get('/api/reviews', async (req, res) => {
   try {
+    // Test DB connection first
+    const testResult = await pool.query('SELECT NOW()');
+    console.log('DB connected:', testResult.rows);
+
     const result = await pool.query(
       `SELECT * FROM reviews ORDER BY created_at DESC LIMIT 50`
     );
     res.json({ reviews: result.rows });
   } catch (error) {
     console.error('Reviews fetch error:', error);
-    res.status(500).json({ error: 'Internal error' });
+    res.status(500).json({ error: 'Internal error', details: error.message });
   }
 });
 
