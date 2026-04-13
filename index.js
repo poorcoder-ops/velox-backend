@@ -13,18 +13,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// PostgreSQL pool
-const poolConfig = process.env.DATABASE_URL
-  ? { connectionString: process.env.DATABASE_URL }
-  : {
-      host: process.env.SUPABASE_HOST,
-      port: parseInt(process.env.SUPABASE_PORT) || 5432,
-      database: process.env.SUPABASE_DB,
-      user: process.env.SUPABASE_USER,
-      password: process.env.SUPABASE_PASSWORD,
-    };
-
-const pool = new Pool(poolConfig);
+// PostgreSQL pool - only create if DATABASE_URL is available
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+});
 
 // Groq client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
