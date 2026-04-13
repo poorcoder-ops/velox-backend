@@ -57,7 +57,7 @@ app.post('/api/webhooks/github', async (req, res) => {
         await pool.query(
           `INSERT INTO reviews (user_id, repository, pull_request_number, status)
            VALUES ($1, $2, $3, $4)`,
-          ['pending-user', repository.full_name, pull_request.number, 'pending']
+          [null, repository.full_name, pull_request.number, 'pending']
         );
 
         // Queue for AI processing (simplified - no actual queue in MVP)
