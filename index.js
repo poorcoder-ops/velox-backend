@@ -105,7 +105,7 @@ Be thorough but concise. Focus on the most important issues.`;
         { role: 'system', content: 'You are Velox, an expert code reviewer. Be thorough and helpful.' },
         { role: 'user', content: prompt }
       ],
-      model: 'mixtral-8x7b-32768',
+      model: 'llama-3.1-8b-instant',
       temperature: 0.7,
     });
 
