@@ -13,19 +13,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// PostgreSQL pool - with SSL and connection settings
+// PostgreSQL pool - force IPv4 to avoid IPv6 routing issues
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   },
-  connectionTimeoutMillis: 10000,
-  host: 'db.uchlzfylwuapeaupwviy.supabase.co',
-  port: 5432,
-  database: 'postgres',
-  user: 'postgres',
-  password: process.env.SUPABASE_PASSWORD || 'PAuHih5wbjHS6Jjw'
+  connectionTimeoutMillis: 10000
 });
+
+// Force IPv4 DNS resolution
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 
 // Groq client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
