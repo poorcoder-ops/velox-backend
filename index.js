@@ -202,7 +202,8 @@ app.get('/api/reviews', async (req, res) => {
 // GitHub OAuth Login - redirect to GitHub
 app.get('/api/auth/github', (req, res) => {
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
-  const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/github/callback`;
+  // Use https - Render terminates SSL, req.protocol may incorrectly report http
+  const redirectUri = `https://${req.get('host')}/api/auth/github/callback`;
   const state = crypto.randomBytes(16).toString('hex');
 
   // Store state in cookie for verification
@@ -238,7 +239,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
         client_id: process.env.GITHUB_OAUTH_CLIENT_ID,
         client_secret: process.env.GITHUB_OAUTH_CLIENT_SECRET,
         code,
-        redirect_uri: `${req.protocol}://${req.get('host')}/api/auth/github/callback`
+        redirect_uri: `https://${req.get('host')}/api/auth/github/callback`
       })
     });
 
