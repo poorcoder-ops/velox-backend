@@ -33,7 +33,10 @@ dns.setDefaultResultOrder('ipv4first');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'https://velox-frontend-nine.vercel.app',
+  credentials: true
+}));
 app.use(express.json());
 app.use(cookieParser());
 
