@@ -4,6 +4,9 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const { createClient } = require('@supabase/supabase-js');
 const Groq = require('groq-sdk');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 
@@ -32,6 +35,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 // Health check
 app.get('/health', (req, res) => {
@@ -195,10 +199,138 @@ app.get('/api/reviews', async (req, res) => {
   }
 });
 
-// Auth check (simplified)
-app.get('/api/auth/me', (req, res) => {
-  // In full implementation, verify session/JWT
-  res.json({ user: null, authenticated: false });
+// GitHub OAuth Login - redirect to GitHub
+app.get('/api/auth/github', (req, res) => {
+  const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
+  const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/github/callback`;
+  const state = crypto.randomBytes(16).toString('hex');
+
+  // Store state in cookie for verification
+  res.cookie('oauth_state', state, { httpOnly: true, secure: true, sameSite: 'lax' });
+
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user,repo&state=${state}`;
+
+  res.redirect(githubAuthUrl);
+});
+
+// GitHub OAuth Callback
+app.get('/api/auth/github/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    const storedState = req.cookies.oauth_state;
+
+    // Verify state to prevent CSRF
+    if (!state || state !== storedState) {
+      return res.status(400).json({ error: 'Invalid OAuth state' });
+    }
+
+    // Clear the state cookie
+    res.clearCookie('oauth_state');
+
+    // Exchange code for access token
+    const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_OAUTH_CLIENT_ID,
+        client_secret: process.env.GITHUB_OAUTH_CLIENT_SECRET,
+        code,
+        redirect_uri: `${req.protocol}://${req.get('host')}/api/auth/github/callback`
+      })
+    });
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    if (!accessToken) {
+      return res.status(400).json({ error: 'Failed to get access token', details: tokenData });
+    }
+
+    // Get user info from GitHub
+    const userResponse = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    const githubUser = await userResponse.json();
+
+    // Upsert user in database
+    const result = await pool.query(
+      `INSERT INTO users (github_id, github_username, access_token, created_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (github_id) DO UPDATE SET
+         github_username = $2,
+         access_token = $3,
+         updated_at = NOW()
+       RETURNING id`,
+      [githubUser.id, githubUser.login, accessToken]
+    );
+
+    const user = result.rows[0];
+
+    // Create JWT
+    const token = jwt.sign(
+      { userId: user.id, githubId: githubUser.id, username: githubUser.login },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    // Set token in cookie
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+    });
+
+    // Redirect to frontend dashboard
+    res.redirect(`${process.env.FRONTEND_URL}/dashboard?login=success`);
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    res.status(500).json({ error: 'OAuth failed', details: error.message });
+  }
+});
+
+// Get current user
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const token = req.cookies.auth_token;
+
+    if (!token) {
+      return res.json({ user: null, authenticated: false });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Get fresh user data from database
+    const result = await pool.query(
+      `SELECT id, github_id, github_username, created_at FROM users WHERE id = $1`,
+      [decoded.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ user: null, authenticated: false });
+    }
+
+    res.json({
+      user: result.rows[0],
+      authenticated: true
+    });
+  } catch (error) {
+    console.error('Auth check error:', error);
+    res.json({ user: null, authenticated: false });
+  }
+});
+
+// Logout
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('auth_token');
+  res.json({ success: true });
 });
 
 // Start server
